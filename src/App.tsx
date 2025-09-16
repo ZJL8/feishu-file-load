@@ -7,7 +7,10 @@ import './App.css';
 
 // 添加从URL获取File的函数（优化：自动识别MIME类型）
 const fetchUrlToFile = async (url: string, filename: string): Promise<File> => {
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    mode: "cors",
+    credentials: "include",
+  });
   // 从响应头获取MIME类型，未知类型时使用通用二进制类型
   const mimeType = response.headers.get('Content-Type') || 'application/octet-stream';
   const blob = await response.blob();
@@ -36,6 +39,8 @@ export default function App() {
   const [tableMetaList, setTableMetaList] = useState<ITableMeta[]>([]);
   const [activeTableId, setActiveTableId] = useState<string>();
   const [fieldMetaList, setFieldMetaList] = useState<{name: string, id: string}[]>([]);
+  const [count, setCount] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
   const formApi = useRef<BaseFormApi>();
 
   const start = async (val: { input: string, output: string }) => {
@@ -57,13 +62,17 @@ export default function App() {
     }
     const recordObj = await table.getRecordList();
     console.log('recordObj', recordObj, inputFiled);
-    for (const record of (recordObj as any).recordList) {
+    const recordList = (recordObj as any).recordList as any[];
+    setCount(recordList.length);
+    setIsRunning(true);
+    for (const record of recordList) {
       const cell = await inputFiled.getCell(record.recordId);
       const inputValues = await cell.getValue(record.recordId);
       for (const _val of inputValues) {
         console.log('[-val]', _val);
         try {
           const resData = await getFileList(_val.link);
+          const list = [];
           for (const res of resData.data.attachmentWidget[0].attachements) {
             // const file = new File(['text2222'], 'file_name.txt', { type: "text/plain" });
             const file = await fetchUrlToFile(
@@ -74,16 +83,22 @@ export default function App() {
               // 'Screenshot_2025-09-11-14-02-26-763_com.ss.android.lark.jpg'  // 文件名可从URL提取或自定义
               // '1231.png'  // 文件名可从URL提取或自定义
             );
-            const outputCell = await outputFiled.getCell(record.recordId);
-            await outputCell.setValue(file);
-            const vals = await outputCell.getValue(record.recordId);
-            console.log('写入的value', vals);
+            list.push(file)
           }
+          console.log(list, 1111)
+          if (!list.length) throw `文件获取失败 `;
+          const outputCell = await outputFiled.getCell(record.recordId);
+          await outputCell.setValue(list);
+          const vals = await outputCell.getValue(record.recordId);
+          console.log('写入的value', vals);
         } catch (err) {
           console.error(err);
+          throw err;
         }
       }
+      setCount(val => val - 1)
     }
+    setIsRunning(false);
     console.log('写入完成！！');
   };
 
@@ -91,13 +106,13 @@ export default function App() {
     Promise.all([bitable.base.getTableMetaList(), bitable.base.getSelection()])
       .then(([metaList, selection]) => {
         setTableMetaList(metaList);
-        formApi.current?.setValues({ table: selection.tableId });
       });
   }, []);
 
   return (
     <main className="main">
       <Form labelPosition='top'
+            disabled={isRunning}
             onSubmit={start}
             getFormApi={(baseFormApi: BaseFormApi) => formApi.current = baseFormApi}>
         <Form.Select field='table'
@@ -145,6 +160,7 @@ export default function App() {
           </Form.Select>
         </div>
         <Button theme='solid' htmlType='submit'>执行</Button>
+        {isRunning && (<div style={{marginTop: 20}}>剩余 {count} 条数据</div>)}
       </Form>
     </main>
   )
