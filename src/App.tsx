@@ -1,7 +1,7 @@
 import { bitable, ITableMeta } from "@lark-base-open/js-sdk";
 import { Button, Form } from '@douyinfe/semi-ui';
 import { BaseFormApi } from '@douyinfe/semi-foundation/lib/es/form/interface';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import './App.css';
 
@@ -67,7 +67,7 @@ export default function App() {
     setIsRunning(true);
     for (const record of recordList) {
       const cell = await inputFiled.getCell(record.recordId);
-      const inputValues = await cell.getValue(record.recordId);
+      const inputValues = await cell.getValue();
       for (const _val of inputValues) {
         console.log('[-val]', _val);
         try {
@@ -89,7 +89,7 @@ export default function App() {
           if (!list.length) throw `文件获取失败 `;
           const outputCell = await outputFiled.getCell(record.recordId);
           await outputCell.setValue(list);
-          const vals = await outputCell.getValue(record.recordId);
+          const vals = await outputCell.getValue();
           console.log('写入的value', vals);
         } catch (err) {
           console.error(err);
@@ -101,6 +101,16 @@ export default function App() {
     setIsRunning(false);
     console.log('写入完成！！');
   };
+
+  const onSelect = async (tableId: string) => {
+    if (tableId) {
+      setActiveTableId(tableId);
+      const table = await bitable.base.getTableById(tableId);
+      const _fieldMetaList = await table.getFieldMetaList();
+      console.log('_fieldMetaList', _fieldMetaList);
+      setFieldMetaList(_fieldMetaList)
+    }
+  }
 
   useEffect(() => {
     Promise.all([bitable.base.getTableMetaList(), bitable.base.getSelection()])
@@ -118,15 +128,7 @@ export default function App() {
         <Form.Select field='table'
                      label='选择表'
                      placeholder="请选择"
-                     onSelect={async (tableId: string) => {
-                       if (tableId) {
-                         setActiveTableId(tableId);
-                         const table = await bitable.base.getTableById(tableId);
-                         const _fieldMetaList = await table.getFieldMetaList();
-                         console.log('_fieldMetaList', _fieldMetaList);
-                         setFieldMetaList(_fieldMetaList)
-                       }
-                     }}>
+                     onSelect={(val: any) => onSelect(val)}>
           {
             Array.isArray(tableMetaList) && tableMetaList.map(({ name, id }) => {
               return (
